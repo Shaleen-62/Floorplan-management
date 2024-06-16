@@ -43,15 +43,14 @@ def suggest(user, date_str, start_time_str, end_time_str, capacity_required):
     last_used_space = None
 
     spaces = Space.objects.filter(capacity__gte=capacity_required).order_by('capacity')
-    space_queue = []
-    
+    space_heap = []
 
     for space in spaces:
-        heappush(space_queue, (space.capacity, space))
-    # based on capacity and availabilty
-    while space_queue:
-        space_capacity, space = heappop(space_queue)
-        occupied_intervals = json.loads(space.occupied or '[]')
+        heappush(space_heap, (space.capacity, space.space_name, space.occupied))
+
+    while space_heap:
+        space_capacity, space_name, occupied_intervals_json = heappop(space_heap)
+        occupied_intervals = json.loads(occupied_intervals_json or '[]')
         conflict = False
 
         for interval in occupied_intervals:
@@ -67,10 +66,9 @@ def suggest(user, date_str, start_time_str, end_time_str, capacity_required):
                 break
 
         if not conflict:
-            suitable_spaces.append({'space_name': space.space_name, 'capacity': space.capacity})
+            suitable_spaces.append({'space_name': space_name, 'capacity': space_capacity})
             break
-        
-    # based on earlier preference
+
     try:
         user_obj = User.objects.get(name=user)
         used_spaces = json.loads(user_obj.used_spaces or '[]')
@@ -82,9 +80,7 @@ def suggest(user, date_str, start_time_str, end_time_str, capacity_required):
     except User.DoesNotExist:
         pass
 
-    if last_used_space:
+    if last_used_space and last_used_space not in [space['space_name'] for space in suitable_spaces]:
         suitable_spaces.append({'space_name': last_used_space, 'capacity': capacity_required})
 
     return suitable_spaces
-
-
